@@ -1,0 +1,42 @@
+require("dotenv").config();
+const express = require("express");
+const app = express();
+const cors = require("cors");
+const { connectDB } = require("./config/db");
+const auth = require("./routes/auth");
+const products = require("./routes/products");
+const orders = require("./routes/orders");
+const dns = require("dns")
+
+
+dns.setServers(["1.1.1.1", "8.8.8.8"])
+
+connectDB();
+
+// app.use(cors({
+//     origin: ["http://localhost:5173", "https://e-commerence-fe.vercel.app"],
+//     credentials: true
+// }));
+
+// Middlewares
+app.use(cors()); // CORS allow karne ke liye
+app.use(express.json()); // JSON body parse karne ke liye
+
+app.use(express.urlencoded({ extended: true }));
+
+app.use('/api/auth', auth);
+app.use("/api/products", products);
+app.use("/api/orders", orders);
+
+const { PORT = 8000 } = process.env;
+
+app.get("/", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "E-Commerce app is running 🚀"
+    });
+});
+
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
