@@ -35,17 +35,21 @@ router.post("/create", verifyToken, async (req, res) => {
     }
 })
 
-// get all orders (superAdmin)
+// get all orders
 router.get("/all", verifyToken, async (req, res) => {
     try {
-
         const { uid, role } = req;
+
+        // Automatically convert any legacy 'shipped' orders to 'delivered' with 'paid'
+        await Orders.updateMany({ orderStatus: "shipped" }, { orderStatus: "delivered", paymentStatus: "paid" });
+        // Automatically ensure any 'delivered' order is marked as 'paid'
+        await Orders.updateMany({ orderStatus: "delivered", paymentStatus: { $ne: "paid" } }, { paymentStatus: "paid" });
 
         let orders = []
         if (role === "superAdmin") {
-            orders = await Orders.find();
+            orders = await Orders.find().sort({ createdAt: -1 });
         } else {
-            orders = await Orders.find({ uid })
+            orders = await Orders.find({ uid }).sort({ createdAt: -1 });
         }
         res.status(200).json({ message: "Orders fetched successfully", orders });
     }
@@ -74,8 +78,21 @@ router.patch("/update/:id", verifyToken, async (req, res) => {
         const { role } = req;
         if (role !== "superAdmin") { return res.status(403).json({ message: "You are not authorized to update orders", isError: true }) }
         const { id } = req.params;
-        const { orderStatus } = req.body;
-        const order = await Orders.findOneAndUpdate({ id }, { orderStatus }, { new: true });
+        const { orderStatus, paymentStatus } = req.body;
+
+        const updateData = {};
+        if (orderStatus) {
+            updateData.orderStatus = orderStatus;
+            // Jab order delivered ho jaye to payment automatically paid ho jaye
+            if (orderStatus === "delivered") {
+                updateData.paymentStatus = "paid";
+            }
+        }
+        if (paymentStatus) {
+            updateData.paymentStatus = paymentStatus;
+        }
+
+        const order = await Orders.findOneAndUpdate({ id }, updateData, { new: true });
         if (!order) { return res.status(404).json({ message: "Order not found" }) }
         res.status(200).json({ message: "Order updated successfully", order });
     }
